@@ -6,15 +6,20 @@ import { supabase } from '@/lib/supabase/client';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChefHat, Clock, History, Loader2, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ChefHat, Clock, History, Loader2, MapPin, CheckCircle2 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
+import { updateComandaItemStatusAction } from '@/app/actions/comandas-actions';
 import type { PainelProducaoView } from '@/lib/types';
 
 export default function CozinhaPage() {
   const { store } = useAuth();
+  const { toast } = useToast();
   const [pedidos, setPedidos] = useState<PainelProducaoView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [marking, setMarking] = useState<string | null>(null);
 
   const fetchPedidos = useCallback(async () => {
     if (!store?.id) return;
@@ -32,6 +37,44 @@ export default function CozinhaPage() {
       setLoading(false);
     }
   }, [store?.id]);
+
+  const handleMarcarPronto = async (itemId: string, productName: string) => {
+    if (!itemId) {
+      toast({ title: 'Erro', description: 'Item inválido', variant: 'destructive' });
+      return;
+    }
+
+    setMarking(itemId);
+    try {
+      const result = await updateComandaItemStatusAction({
+        itemId,
+        status: 'pronto'
+      });
+
+      if (result.success) {
+        toast({
+          title: '✅ Item Pronto!',
+          description: `${productName} marcado para retirada`,
+          duration: 3000
+        });
+      } else {
+        toast({
+          title: 'Erro',
+          description: result.error || 'Erro ao marcar item',
+          variant: 'destructive'
+        });
+      }
+    } catch (err) {
+      console.error('[MARCAR_PRONTO_ERROR]', err);
+      toast({
+        title: 'Erro',
+        description: 'Erro inesperado',
+        variant: 'destructive'
+      });
+    } finally {
+      setMarking(null);
+    }
+  };
 
   useEffect(() => {
     fetchPedidos();
@@ -88,6 +131,24 @@ export default function CozinhaPage() {
                   <span className="text-4xl font-black text-primary">{p.quantidade}</span>
                 </div>
               </div>
+
+              <Button
+                onClick={() => handleMarcarPronto(p.item_id, p.produto)}
+                disabled={marking === p.item_id}
+                className="w-full h-12 font-black uppercase text-xs tracking-widest"
+              >
+                {marking === p.item_id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Marcando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Marcar como Pronto
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         ))}
